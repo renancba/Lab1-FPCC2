@@ -1,0 +1,214 @@
+---
+title: "Relatório do LAB1"
+output:
+  html_document: default
+  pdf_document: default
+date: '2025-05-03'
+---
+
+```{r setup, include=FALSE}
+# Carregar as bibliotecas necessárias
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(kableExtra)
+library(stringr)
+library(tidyr)
+
+# Carregar os dados
+cursos <- read_csv("D:\\Dados Lab1\\cursos-prouni.csv")
+estados <- read_csv("D:\\Dados Lab1\\estados.csv")
+
+# Combinar as tabelas
+dados_combinados <- left_join(cursos, estados, by = c("uf_busca" = "subdivision"))
+```
+
+Questão 1 - Diferença entre as mensalidades médias e medianas dos cursos de Ciência da Computação nas regiões Nordeste e Sudeste
+
+Justificativa:
+A diferença pode ocorrer por diversos motivos, os que acredito serem os principais são: bonÇus regionais, alta concentração populacional e grande concentração de centros referências na área na região sudeste, acredito que é uma diferença relevante já que são mais de 100 pontos em média.
+
+Justificativa para a escolha das métricas e estatísticas:
+A escolha das mensalidades médias e medianas foi feita para capturar tanto a tendência central dos dados quanto as variações. A média é útil para entender o valor médio do custo, mas a mediana é escolhida para verificar o comportamento de um possível viés de extremos (caso existam cursos com mensalidades extremamente altas ou baixas). A diferença entre essas duas estatísticas pode refletir desigualdades regionais, como custos mais elevados na região Sudeste devido a maior concentração de universidades e centros urbanos, que podem aumentar os custos operacionais.
+
+Justificativa para a visualização:
+A tabela foi escolhida para apresentar os valores exatos das mensalidades médias e medianas nas duas regiões, permitindo uma comparação direta. A tabela é adequada quando precisamos de uma apresentação clara e organizada dos dados numéricos, além de possibilitar a visualização detalhada de ambas as métricas lado a lado.
+.
+
+```{r q1, echo=FALSE}
+# Filtrar cursos de Ciência da Computação nas regiões Nordeste (NE) e Sudeste (SE)
+dados_computacao <- dados_combinados %>%
+  filter(region %in% c("NE", "SE") & 
+           (grepl("Ciência da Computação", nome) | 
+              grepl("Ciencias da Computacao", nome)))
+
+# Calcular as mensalidades médias e medianas nas duas regiões
+media_nordeste <- mean(dados_computacao$mensalidade[dados_computacao$region == "NE"], na.rm = TRUE)
+mediana_nordeste <- median(dados_computacao$mensalidade[dados_computacao$region == "NE"], na.rm = TRUE)
+
+media_sudeste <- mean(dados_computacao$mensalidade[dados_computacao$region == "SE"], na.rm = TRUE)
+mediana_sudeste <- median(dados_computacao$mensalidade[dados_computacao$region == "SE"], na.rm = TRUE)
+
+# Criar tabela com os resultados
+tabela_resultados <- data.frame(
+  Regiao = c("Nordeste", "Sudeste"),
+  Media = c(media_nordeste, media_sudeste),
+  Mediana = c(mediana_nordeste, mediana_sudeste)
+)
+
+# Criar a tabela de resultados com kableExtra
+tabela_resultados %>%
+  kable(format = "html", caption = "Mensalidades Médias e Medianadas nas Regiões Nordeste (NE) e Sudeste (SE)") %>%
+  kable_styling(
+    full_width = FALSE,   # Ajusta a tabela para não ocupar toda a largura da página
+    position = "center",  # Centraliza a tabela
+    font_size = 16,       # Aumenta o tamanho da fonte para melhorar a legibilidade
+    bootstrap_options = c("striped", "hover", "condensed") # Estilos do Bootstrap
+  ) %>%
+  column_spec(1, bold = TRUE, color = "white", background = "#0073e6") %>%
+  column_spec(2:3, bold = TRUE, color = "black", background = "#f2f2f2") %>%
+  row_spec(0, bold = TRUE, font_size = 18, color = "black", background = "#e6e6e6") %>%
+  row_spec(1:nrow(tabela_resultados), extra_css = "padding: 10px;")
+
+```
+Questão 2 - Top 10 cursos com maior valor de mensalidade pelo total de bolsas
+
+Justificativa:
+Sim, claramente os cursos com maior mensalidade apresentam pouquissimas vagas, algo que é de se imaginar, vistop que cursos com altos custos universitáios serão menos disponibilziados pelos grandes centros visando uma maior arrecadação de recursos.
+
+Justificativa para a escolha das métricas e estatísticas:
+A escolha do total de bolsas e da média de mensalidade visam observar como o custo da mensalidade se relaciona com o número de bolsas oferecidas. Cursos com altas mensalidades tendem a oferecer menos bolsas devido a um foco maior em recursos financeiros. A razão de mensalidade por bolsa foi calculada para verificar a eficiência de distribuição das bolsas em relação ao custo do curso.
+
+Justificativa para a visualização:
+O gráfico de barras horizontal foi a escolha para esta questão, pois ele facilita a visualização de cursos com altos valores de mensalidade, permitindo uma comparação clara entre os cursos. A barra horizontal é útil quando temos textos longos (nomes dos cursos) e quando queremos destacar os cursos com maior razão de mensalidade por bolsa, fazendo com que as comparações sejam rápidas e claras.
+
+```{r q2, echo=FALSE}
+# Calcular o total de bolsas para cada curso
+dados_combinados <- dados_combinados %>%
+  mutate(total_bolsas = bolsa_integral_cotas + bolsa_integral_ampla + bolsa_parcial_cotas + bolsa_parcial_ampla)
+
+# Calcular a média de mensalidade por curso
+dados_combinados <- dados_combinados %>%
+  group_by(nome) %>%
+  mutate(media_mensalidade = mean(mensalidade, na.rm = TRUE))
+
+# Calcular a razão média mensalidade por bolsa
+dados_combinados <- dados_combinados %>%
+  mutate(mensalidade_por_bolsa = media_mensalidade / total_bolsas)
+
+# Ordenar os cursos pela razão média mensalidade por bolsa de forma decrescente
+top10_cursos_caro_por_bolsa <- dados_combinados %>%
+  arrange(desc(mensalidade_por_bolsa)) %>%  # Ordenar em ordem decrescente
+  distinct(nome, .keep_all = TRUE) %>%
+  head(10) %>%
+  select(nome, media_mensalidade, total_bolsas, mensalidade_por_bolsa)
+
+# Gerar gráfico de barras para visualizar a razão de mensalidade por bolsa
+ggplot(top10_cursos_caro_por_bolsa, aes(x = reorder(nome, mensalidade_por_bolsa), y = mensalidade_por_bolsa, fill = nome)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  coord_flip() +  # Inverte os eixos para tornar os nomes dos cursos mais legíveis
+  labs(title = "Top 10 Cursos Mais Caros em Relação à Média de Mensalidade por Bolsa",
+       x = "Curso",
+       y = "Razão de Mensalidade por Bolsa") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 10), axis.title = element_text(size = 12))
+```
+
+Questão 3 -  Quais são os cursos tecnológicos do estado da Paraíba que oferecem mais bolsas de estudo e quantas bolsas de cada tipo estes cursos oferecem?
+
+Justificativa para a escolha das métricas e estatísticas:
+A métrica escolhida é o total de bolsas de diferentes tipos (integral, parcial, cotas, ampla) para cada curso. Essa escolha reflete a necessidade de entender não só o número total de bolsas, mas também a distribuição delas entre os diferentes tipos. A soma de bolsas ajuda a destacar os cursos que mais contribuem para o acesso à educação superior.
+
+Justificativa para a visualização:
+O gráfico de barra horizontal foi novamente utilizado aqui, pois permite que o nome dos cursos e o número total de bolsas sejam comparados de forma clara. As barras horizontais facilitam a visualização de diferentes cursos em função do número de bolsas, além de permitir a leitura dos nomes dos cursos sem que eles se sobreponham.
+
+```{r q3, echo=FALSE}
+# Filtrar cursos que contenham "Tecnologia" ou "Computação" no nome e que sejam da Paraíba (uf_busca == 'PB')
+cursos_paraiba <- dados_combinados %>%
+  filter(uf_busca == "PB" & 
+           (str_detect(grau, "Tecno")))  
+
+# Calcular o total de bolsas de cada tipo para os cursos filtrados, substituindo NA por 0
+cursos_paraiba_bolsas <- cursos_paraiba %>%
+  select(nome, universidade_nome, bolsa_integral_ampla, bolsa_parcial_ampla, bolsa_integral_cotas, bolsa_parcial_cotas) %>%
+  mutate(
+    bolsa_integral_ampla = ifelse(is.na(bolsa_integral_ampla), 0, bolsa_integral_ampla),
+    bolsa_parcial_ampla = ifelse(is.na(bolsa_parcial_ampla), 0, bolsa_parcial_ampla),
+    bolsa_integral_cotas = ifelse(is.na(bolsa_integral_cotas), 0, bolsa_integral_cotas),
+    bolsa_parcial_cotas = ifelse(is.na(bolsa_parcial_cotas), 0, bolsa_parcial_cotas),
+    total_bolsas = bolsa_integral_ampla + bolsa_parcial_ampla + bolsa_integral_cotas + bolsa_parcial_cotas
+  )
+
+# Classificar os cursos pelo total de bolsas e pegar os 5 primeiros
+cursos_paraiba_bolsas <- cursos_paraiba_bolsas %>%
+  arrange(desc(total_bolsas)) %>%
+  head(5)  # Seleciona os 05 primeiros cursos com maior número de bolsas
+
+# Limpar e truncar nomes
+cursos_paraiba_bolsas$nome <- str_replace_all(cursos_paraiba_bolsas$nome, "[\r\n]", " ")
+cursos_paraiba_bolsas$nome <- str_squish(cursos_paraiba_bolsas$nome)
+cursos_paraiba_bolsas$nome_truncado <- str_trunc(cursos_paraiba_bolsas$nome, 40)
+
+
+# Gráfico 
+ggplot(cursos_paraiba_bolsas, aes(x = reorder(nome_truncado, total_bolsas), y = total_bolsas, fill = nome_truncado)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  labs(
+    title = "Top 5 Cursos Tecnologicos com Mais Bolsas na Paraiba",
+    x = "Curso",
+    y = "Total de Bolsas"
+  ) +
+  theme_minimal() +
+  coord_flip() +
+  theme(
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  ) +
+  scale_fill_brewer(palette = "Paired")
+```
+
+Questão 4 - Percentual de Bolsas por Modalidade em Cursos de Ciência da Computação, Engenharia da Computação e Sistemas de Informação
+
+Justificativa para a escolha das métricas e estatísticas:
+O percentual de bolsas por modalidade foi escolhido para compreender a distribuição das bolsas nos diferentes turnos e modalidades (integral, parcial, cotas, ampla). Isso fornece uma visão mais aprofundada sobre como as bolsas são distribuídas entre as modalidades e ajuda a observar possíveis diferenças entre os cursos, como a maior concentração de bolsas integrais ou parciais.
+
+Justificativa para a visualização:
+O gráfico de barras verticais foi utilizado para ilustrar o percentual de bolsas por turno. As barras verticais são eficazes para comparar categorias (turnos/modalidades) entre diferentes cursos, facilitando a comparação visual dos percentuais de bolsas por modalidade. A escolha por esse formato é particularmente útil quando se tem múltiplas categorias a serem comparadas.
+
+```{r q4, echo=FALSE}
+
+# Filtrar os cursos de interesse
+dados_filtros <- dados_combinados %>%
+  filter(nome %in% c("Ciência da Computação", "Engenharia da Computação", "Sistemas de Informação"))
+
+# Calcular o total de bolsas por curso e turno
+dados_bolsas_turno <- dados_filtros %>%
+  mutate(total_bolsas = rowSums(across(c(bolsa_integral_cotas, bolsa_integral_ampla, 
+                                         bolsa_parcial_cotas, bolsa_parcial_ampla)), na.rm = TRUE)) %>%
+  group_by(nome, turno) %>%
+  summarise(total_bolsas_turno = sum(total_bolsas, na.rm = TRUE), .groups = "drop")
+
+# Calcular o total de bolsas por curso (para calcular o percentual)
+total_por_curso <- dados_bolsas_turno %>%
+  group_by(nome) %>%
+  summarise(total_bolsas_curso = sum(total_bolsas_turno), .groups = "drop")
+
+# Calcular o percentual por turno/modalidade
+dados_percentuais <- dados_bolsas_turno %>%
+  left_join(total_por_curso, by = "nome") %>%
+  mutate(percentual = (total_bolsas_turno / total_bolsas_curso) * 100)
+
+# Gráfico de barras
+ggplot(dados_percentuais, aes(x = turno, y = percentual, fill = turno)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  facet_wrap(~ nome) +
+  labs(
+    title = "Percentual de Bolsas por Turno para Cada Curso",
+    x = "Turno (Modalidade)",
+    y = "Percentual de Bolsas (%)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_brewer(palette = "Set2")
+```
